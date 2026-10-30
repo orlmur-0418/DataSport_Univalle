@@ -1,0 +1,10 @@
+# Skill de Taste (sin licencia de redistribución): se reinstala con `npx skills add Leonxlnx/taste-skill`
+.agents/
+.claude/skills/design-taste-frontend
+# Capturas y estado local de las herramientas de diseño
+.taste-skill/inspect/
+.impeccable/questions/
+.impeccable/build/
+.impeccable/review/
+.DS_Store
+node_modules/

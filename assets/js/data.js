@@ -1,7 +1,7 @@
 // Capa de datos. Dos modos con la misma interfaz:
 //  - "supabase": la plataforma real (login, RLS, base de datos en Supabase)
 //  - "demo": datos de ejemplo guardados en este navegador, para explorar sin cuenta
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=2';
 import { crearDemo } from './demo-data.js';
 
 const MODO_KEY = 'datasport-modo';

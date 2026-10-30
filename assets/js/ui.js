@@ -5,6 +5,7 @@ export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 // Íconos de trazo (16px, 1.5) dibujados para esta app
 const P = {
   resumen: '<path d="M3 13.5V8M8 13.5V3M13 13.5v-4"/>',
+  analisis: '<path d="M2.5 12.5 6 8.5l2.5 2.5 5-6"/><path d="M10.5 5h3v3"/>',
   partidos: '<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/>',
   jugadores: '<circle cx="6" cy="5.5" r="2.25"/><path d="M2 13c.4-2.2 2-3.5 4-3.5s3.6 1.3 4 3.5"/><path d="M10.5 3.6a2.2 2.2 0 0 1 0 4M12 9.8c1 .5 1.7 1.6 2 3.2"/>',
   equipo: '<path d="M8 2 13 4v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/>',

@@ -142,6 +142,66 @@ export function crearDemo() {
     });
   });
 
+  // --- Fútbol sala masculino -----------------------------------------------
+  const fsa = { id: 'demo-futsal', profesor_id: perfil.id, nombre: 'Univalle Fútbol Sala Masculino', deporte: 'futbol_sala', categoria: 'masculino', temporada: '2026', creado_en: creado };
+  equipos.push(fsa);
+  const pfs = plantel(fsa, [
+    ['Mateo Lasso', 1, 'Portero'], ['Samuel Valencia', 3, 'Cierre'], ['Nicolás Banguero', 5, 'Ala'], ['Julián Caicedo', 7, 'Ala'],
+    ['Alejandro Riascos', 9, 'Pívot'], ['Tomás Ocampo', 10, 'Ala'], ['David Quintero', 11, 'Cierre'], ['Óscar Palacios', 14, 'Pívot'], ['Emanuel Cuesta', 12, 'Portero'],
+  ]);
+  const pesoFs = { Pívot: 5, Ala: 3, Cierre: 1, Portero: 0 };
+  const marcadoresS = [[5, 3], [2, 4], [4, 4], [6, 2], [3, 2], [1, 3], [3, 5], [2, 1]];
+  fechas(8).forEach((fecha, i) => {
+    const [gf, gc] = marcadoresS[i];
+    const p = { id: id('p'), equipo_id: fsa.id, fecha, rival: rivales[(i + 2) % rivales.length], condicion: i % 2 ? 'local' : 'visitante', competicion: 'Torneo Universitario de Fútbol Sala', marcador_favor: gf, marcador_contra: gc, parciales: null, notas: null, creado_en: creado };
+    partidos.push(p);
+    const enCancha = pfs.slice(0, 8);
+    const g = {}, a = {};
+    for (let k = 0; k < gf; k++) {
+      const gol = pesado(enCancha, (j) => pesoFs[j.posicion]); g[gol.id] = (g[gol.id] || 0) + 1;
+      if (r() < 0.6) { const asis = pesado(enCancha.filter((j) => j !== gol), (j) => (j.posicion === 'Portero' ? 0.1 : j.posicion === 'Ala' ? 3 : 1.5)); a[asis.id] = (a[asis.id] || 0) + 1; }
+    }
+    for (const j of enCancha) {
+      const goles = g[j.id] || 0;
+      const rem = goles + (j.posicion === 'Portero' ? 0 : int(1, pesoFs[j.posicion] > 2 ? 5 : 2));
+      stat(p.id, j.id, 'goles', goles); stat(p.id, j.id, 'asistencias', a[j.id] || 0);
+      stat(p.id, j.id, 'remates', rem); stat(p.id, j.id, 'remates_arco', Math.min(rem, goles + int(0, Math.max(0, rem - goles))));
+      stat(p.id, j.id, 'faltas', j.posicion === 'Portero' ? 0 : int(0, 2));
+      stat(p.id, j.id, 'amarillas', r() < 0.08 ? 1 : 0);
+      if (j.posicion === 'Portero') stat(p.id, j.id, 'atajadas', int(3, 9));
+    }
+  });
+
+  // --- Balonmano femenino --------------------------------------------------
+  const bm = { id: 'demo-balonmano', profesor_id: perfil.id, nombre: 'Univalle Balonmano Femenino', deporte: 'balonmano', categoria: 'femenino', temporada: '2026', creado_en: creado };
+  equipos.push(bm);
+  const pbm = plantel(bm, [
+    ['Verónica Murillo', 1, 'Portero'], ['Lorena Cuero', 3, 'Extremo'], ['Yesenia Mosquera', 5, 'Lateral'], ['Adriana Lemos', 7, 'Central'],
+    ['Paola Hinestroza', 9, 'Pivote'], ['Johana Arboleda', 11, 'Lateral'], ['Katherine Sinisterra', 13, 'Extremo'], ['Mónica Valencia', 15, 'Lateral'],
+    ['Leidy Rentería', 17, 'Pivote'], ['Claudia Potes', 12, 'Portero'],
+  ]);
+  const pesoBm = { Lateral: 4, Central: 3, Extremo: 2.5, Pivote: 2.5, Portero: 0 };
+  const marcadoresM = [[24, 21], [19, 25], [27, 26], [22, 22], [30, 23], [20, 24], [25, 21], [23, 24], [28, 22]];
+  fechas(9).forEach((fecha, i) => {
+    const [gf, gc] = marcadoresM[i];
+    const p = { id: id('p'), equipo_id: bm.id, fecha, rival: rivales[(i + 4) % rivales.length], condicion: i % 2 ? 'visitante' : 'local', competicion: 'Liga Universitaria ASCUN Valle', marcador_favor: gf, marcador_contra: gc, parciales: null, notas: null, creado_en: creado };
+    partidos.push(p);
+    const enCancha = pbm.slice(0, 9);
+    const g = {}, a = {};
+    for (let k = 0; k < gf; k++) {
+      const gol = pesado(enCancha, (j) => pesoBm[j.posicion]); g[gol.id] = (g[gol.id] || 0) + 1;
+      if (r() < 0.45) { const asis = pesado(enCancha.filter((j) => j !== gol), (j) => (j.posicion === 'Central' ? 4 : j.posicion === 'Portero' ? 0.1 : 1.5)); a[asis.id] = (a[asis.id] || 0) + 1; }
+    }
+    for (const j of enCancha) {
+      const goles = g[j.id] || 0;
+      stat(p.id, j.id, 'goles', goles); stat(p.id, j.id, 'lanzamientos', j.posicion === 'Portero' ? 0 : goles + int(1, 4));
+      stat(p.id, j.id, 'asistencias', a[j.id] || 0);
+      stat(p.id, j.id, 'robos', j.posicion === 'Portero' ? 0 : int(0, 2)); stat(p.id, j.id, 'perdidas', j.posicion === 'Portero' ? 0 : int(0, 3));
+      stat(p.id, j.id, 'exclusiones', r() < 0.15 ? 1 : 0);
+      if (j.posicion === 'Portero') stat(p.id, j.id, 'paradas', int(6, 15));
+    }
+  });
+
   const invitaciones = [
     { email: perfil.email, nombre: perfil.nombre, llave: 'DEMO-0001', es_admin: true, creada_en: creado, activada_en: creado },
     { email: 'entrenador.balonmano@correounivalle.edu.co', nombre: 'Entrenador de balonmano', llave: '7F3A-C21E', es_admin: false, creada_en: '2026-10-20T15:00:00.000Z', activada_en: null },

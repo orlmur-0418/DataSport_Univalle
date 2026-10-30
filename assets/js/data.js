@@ -5,7 +5,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=2';
 import { crearDemo } from './demo-data.js';
 
 const MODO_KEY = 'datasport-modo';
-const DEMO_KEY = 'datasport-demo-v1';
+const DEMO_KEY = 'datasport-demo-v2';
 
 export const modo = () => (localStorage.getItem(MODO_KEY) === 'demo' ? 'demo' : 'supabase');
 export const entrarDemo = () => { localStorage.setItem(MODO_KEY, 'demo'); };

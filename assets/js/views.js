@@ -1,7 +1,8 @@
 // Pantallas de la app: resumen, partidos, planilla, jugadores, equipo y profesores.
 import { esc, icon, aviso, confirmar, ocupado, fechaCorta, fechaLarga, hoyISO, bug } from './ui.js';
-import { deporte, DEPORTES, CATEGORIAS, CONDICIONES, resumen, hallazgo, resultado, formatear, fmtInt, fmtDec1, fmtDec2, fmtPct1, agregar, puntosJugador } from './sports.js';
+import { deporte, DEPORTES, CATEGORIAS, CONDICIONES, resumen, hallazgo, resultado, formatear, fmtInt, fmtDec1, fmtDec2, fmtPct0, fmtPct1, agregar, puntosJugador, nombreCorto } from './sports.js';
 import { mensajeError } from './data.js';
+import { analizar, fmtRegistro } from './analysis.js';
 
 const subtitulo = (eq) => `${deporte(eq.deporte).nombre} · ${CATEGORIAS[eq.categoria]} · Temporada ${esc(eq.temporada)}`;
 const fmtCol = (c, v) => (v == null ? '—' : c.pct ? fmtPct1(v) : c.d === 1 ? fmtDec1(v) : c.d === 2 ? fmtDec2(v) : fmtInt(v));
@@ -15,6 +16,7 @@ export async function vistaResumen(el, ctx) {
   const { jugadores, partidos, filas } = await ctx.cargarEquipo();
   const r = resumen(eq, partidos, jugadores, filas);
   const activos = jugadores.filter((j) => j.activo).length;
+  const an = analizar(eq, partidos, jugadores, filas);
 
   el.innerHTML = `
     <div class="title-row">
@@ -39,6 +41,10 @@ export async function vistaResumen(el, ctx) {
       ${r.kpis.map((k) => `<div class="kpi"><div class="kpi-label">${esc(k.l)}</div><div class="kpi-value">${r.pj ? formatear(k) : '<span class="zero">—</span>'}</div>${k.sub && r.pj ? `<div class="delta">${esc(k.sub)}</div>` : ''}</div>`).join('')}
     </div>
     <div class="dash-grid">
+      ${an.suficiente && an.hallazgos.length ? `<section class="panel span-12" aria-labelledby="h-datos">
+        <header><div><h2 id="h-datos">Lo que dicen los datos</h2><p class="meta">Lectura automática de la temporada</p></div><a class="card-link" href="#/analisis">Ver análisis completo</a></header>
+        <ol class="insights">${an.hallazgos.slice(0, 3).map((h) => `<li>${esc(h.texto)}</li>`).join('')}</ol>
+      </section>` : ''}
       <section class="panel span-8" aria-labelledby="h-serie">
         <header><div><h2 id="h-serie">${esc(r.serie.favor)} y ${esc(r.serie.contra.toLowerCase())}</h2><p class="meta">Por partido, en orden de fecha</p></div><div id="leyenda"></div></header>
         <div class="chart" id="chart-serie"></div>
@@ -510,4 +516,95 @@ export async function vistaProfesores(el, ctx) {
     if (!ok) return;
     try { await ctx.api.eliminarInvitacion(inv.email); aviso('Invitación retirada'); ctx.render(); } catch (err) { aviso(mensajeError(err), 'error'); }
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Análisis: qué decide los partidos, rendimiento esperado, tendencia y forma
+// ---------------------------------------------------------------------------
+const MENOS = '−';
+const conSigno = (f) => (x) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? MENOS : '') + f(Math.abs(x)));
+const fmtVal = (m, x) => (x == null ? '—' : m.pct ? fmtPct1(x) : m.d === 2 ? fmtDec2(x) : m.d === 0 ? fmtInt(x) : fmtDec1(x));
+const tono = (x, menos = false) => (x == null || Math.abs(x) < 1e-9 ? '' : (x > 0) !== menos ? 'good' : 'bad');
+
+export async function vistaAnalisis(el, ctx) {
+  const eq = ctx.equipo;
+  const { jugadores, partidos, filas } = await ctx.cargarEquipo();
+  const a = analizar(eq, partidos, jugadores, filas);
+  const cab = `<div class="title-row"><div><h1>Análisis</h1><p class="sub muted">${esc(eq.nombre)} · ${subtitulo(eq)}</p>
+    </div></div>`;
+  if (!a.suficiente) {
+    el.innerHTML = `${cab}<div class="empty"><p>El análisis necesita al menos 3 partidos registrados para comparar resultados, estimar el rendimiento esperado y medir la forma. ${a.pj ? `Llevas ${a.pj}.` : ''} <a class="card-link" href="#/partidos/nuevo">Registrar partido</a></p></div>`;
+    return;
+  }
+  const dep = eq.deporte, cfg = a.cfg;
+  const t = a.tendencia, e = a.esperado, dc = a.decide;
+
+  el.innerHTML = `${cab}
+    <section class="panel" aria-labelledby="h-datos">
+      <header><div><h2 id="h-datos">Lo que dicen los datos</h2><p class="meta">Conclusiones calculadas con los ${a.pj} partidos registrados</p></div></header>
+      <ol class="insights">${a.hallazgos.slice(0, 6).map((h) => `<li>${esc(h.texto)}</li>`).join('')}</ol>
+    </section>
+    <div class="dash-grid">
+      <section class="panel span-8" aria-labelledby="h-tend">
+        <header><div><h2 id="h-tend">Tendencia del equipo</h2><p class="meta">Diferencia de ${esc(t.unidad)} por partido${dep === 'voleibol' ? ', sumando todos los sets' : ''}</p></div><div id="ley-tend"></div></header>
+        <div class="chart" id="ch-tend"></div>
+        ${t.ultimos != null ? `<div class="extras three"><div><div class="l">Últimos 3 partidos</div><div class="v ${tono(t.ultimos - t.temporada)}">${conSigno(fmtDec1)(t.ultimos)}</div></div><div><div class="l">Promedio de la temporada</div><div class="v">${conSigno(fmtDec1)(t.temporada)}</div></div><div><div class="l">Cambio</div><div class="v ${tono(t.ultimos - t.temporada)}">${conSigno(fmtDec1)(t.ultimos - t.temporada)}</div></div></div>` : ''}
+      </section>
+      <section class="panel span-4" aria-labelledby="h-esp">
+        <header><div><h2 id="h-esp">¿Los resultados reflejan el juego?</h2><p class="meta">Rendimiento esperado frente al real</p></div></header>
+        ${e ? `<div class="expected">
+            <div><div class="l">Real</div><div class="v">${fmtInt(e.real)}<small>${esc(e.unidad)}</small></div></div>
+            <div><div class="l">Esperado</div><div class="v muted-v">${fmtDec1(e.esperado)}<small>${esc(e.unidad)}</small></div></div>
+          </div>
+          <p class="delta-line"><span class="${tono(e.delta)}">${conSigno(fmtDec1)(e.delta)} ${esc(e.unidad)}</span> frente a lo esperado</p>
+          <p class="reading">El equipo ${esc(e.lectura)}.</p>
+          <p class="method">${esc(e.metodo)}, con ${esc(e.base)}.</p>` : `<div class="empty"><p>Faltan marcadores por set para estimarlo.</p></div>`}
+      </section>
+      <section class="panel flush span-7" aria-labelledby="h-decide">
+        <header><div><h2 id="h-decide">Qué separa las victorias de las derrotas</h2><p class="meta">Promedio por partido · ${fmtInt(dc.v)} victorias y ${fmtInt(dc.d)} derrotas</p></div></header>
+        <div class="table-wrap table-panel">${dc.filas.length ? `<table><thead><tr><th>Indicador</th><th class="n">En victorias</th><th class="n">En derrotas</th><th class="n">Diferencia</th></tr></thead><tbody>${dc.filas.map((m) => { const d = m.enV - m.enD; return `<tr><td>${esc(m.l)}</td><td class="n">${fmtVal(m, m.enV)}</td><td class="n">${fmtVal(m, m.enD)}</td><td class="n ${tono(d, m.menos)}">${m.pct ? `${conSigno(fmtDec1)(d * 100)} p. p.` : conSigno(fmtDec1)(d)}</td></tr>`; }).join('')}</tbody></table>
+          <p class="foot">Ordenado por el tamaño de la diferencia. Verde: el equipo está mejor en ese indicador cuando gana.</p>` : `<div class="empty" style="margin:16px var(--card-pad)"><p>Se necesitan al menos 2 victorias y 2 derrotas para comparar.</p></div>`}</div>
+      </section>
+      <section class="panel flush span-5" aria-labelledby="h-ctx">
+        <header><div><h2 id="h-ctx">Rendimiento según el contexto</h2><p class="meta">Registro ${dep === 'voleibol' || dep === 'baloncesto' ? 'V-D' : 'V-E-D'} y diferencia media</p></div></header>
+        <div class="table-wrap table-panel"><table><thead><tr><th>Situación</th><th class="n">PJ</th><th class="n">Registro</th><th class="n">Dif. media</th></tr></thead><tbody>
+          ${a.contexto.map((c) => `<tr><td>${esc(c.l)}</td><td class="n">${cifra(c.r.n, fmtInt(c.r.n))}</td><td class="n">${c.r.n ? fmtRegistro(c.r, dep) : '—'}</td><td class="n ${tono(c.dif)}">${conSigno(fmtDec1)(c.dif)}</td></tr>`).join('')}
+          ${a.primerSet ? `<tr><td>Ganando el primer set</td><td class="n">${fmtInt(a.primerSet.gana.n)}</td><td class="n">${a.primerSet.gana.n ? fmtRegistro(a.primerSet.gana, dep) : '—'}</td><td class="n">—</td></tr><tr><td>Perdiendo el primer set</td><td class="n">${fmtInt(a.primerSet.pierde.n)}</td><td class="n">${a.primerSet.pierde.n ? fmtRegistro(a.primerSet.pierde, dep) : '—'}</td><td class="n">—</td></tr>` : ''}
+        </tbody></table></div>
+        ${a.sets?.length ? `<div class="inner"><h3 class="h3">Sets ganados según el número de set</h3><div class="chart" id="ch-sets"></div></div>` : ''}
+      </section>
+      <section class="panel span-8" aria-labelledby="h-efi">
+        <header><div><h2 id="h-efi">Eficiencia</h2><p class="meta">Calidad de cada acción, no solo cantidad</p></div></header>
+        <div class="eff">${a.eficiencia.tarjetas.map((c) => `<div><div class="l">${esc(c.l)}</div><div class="v">${c.v}</div><div class="n">${esc(c.n)}</div></div>`).join('')}</div>
+        ${a.eficiencia.origen ? `<div class="inner"><h3 class="h3">${esc(a.eficiencia.origen.titulo)}</h3><div id="ch-origen"></div></div>` : ''}
+      </section>
+      <section class="panel span-4" aria-labelledby="h-dep">
+        <header><div><h2 id="h-dep">Reparto del ataque</h2><p class="meta">Parte de ${dep.startsWith('futbol') || dep === 'balonmano' ? 'los goles' : 'los puntos'} de jugadores</p></div></header>
+        ${a.dependencia ? `<div class="expected"><div><div class="l">Máximo anotador</div><div class="v">${fmtPct0(a.dependencia.top1)}</div></div><div><div class="l">Top 3</div><div class="v">${fmtPct0(a.dependencia.top3)}</div></div></div><div id="ch-dep" style="margin-top:12px"></div>` : '<div class="empty"><p>Sin anotaciones de jugadores.</p></div>'}
+      </section>
+      <section class="panel flush span-12" aria-labelledby="h-forma">
+        <header><div><h2 id="h-forma">Forma de los jugadores · ${esc(cfg.indiceNombre)}</h2><p class="meta">Últimos 3 partidos jugados frente a su promedio · jugadores con 3 o más partidos</p></div></header>
+        <div class="table-wrap table-panel">${a.forma.length ? `<table><thead><tr><th>Jugador</th><th class="n">PJ</th><th class="n">Promedio</th><th class="n">Últimos 3</th><th class="n">Cambio</th><th>Lectura</th></tr></thead><tbody>${a.forma.map((f) => { const rel = f.cambio / Math.max(1, Math.abs(f.temporada)); const lect = rel > 0.3 ? 'En alza' : rel < -0.3 ? 'A la baja' : 'Estable'; return `<tr><td><span class="player"><span class="dorsal">${f.jugador.dorsal ?? ''}</span><a class="row-link" href="#/jugadores/${f.jugador.id}">${esc(f.jugador.nombre)}</a></span></td><td class="n">${fmtInt(f.pj)}</td><td class="n">${fmtDec1(f.temporada)}</td><td class="n">${fmtDec1(f.ultimos)}</td><td class="n ${Math.abs(rel) > 0.3 ? tono(f.cambio) : ''}">${conSigno(fmtDec1)(f.cambio)}</td><td class="${lect === 'Estable' ? 'muted' : tono(f.cambio)}">${lect}</td></tr>`; }).join('')}</tbody></table>` : `<div class="empty" style="margin:16px var(--card-pad)"><p>Ningún jugador tiene todavía 3 partidos con estadísticas.</p></div>`}
+          <p class="foot">${esc(cfg.indiceNota)} El cambio compara los últimos 3 partidos con los anteriores.</p></div>
+      </section>
+      <section class="panel flush span-12" aria-labelledby="h-prod">
+        <header><div><h2 id="h-prod">Producción ${cfg.porMinutos ? `por ${cfg.porMinutos} minutos` : 'por partido'}</h2><p class="meta">${cfg.porMinutos ? `Normaliza por tiempo en cancha · mínimo ${cfg.minMinutos} minutos jugados` : 'Promedios por partido jugado · mínimo 2 partidos'}</p></div></header>
+        <div class="table-wrap table-panel" id="tabla-prod"></div>
+      </section>
+    </div>`;
+
+  const lab = partidos.length ? [...partidos].sort((x, y) => x.fecha.localeCompare(y.fecha)).map((p) => fechaCorta(p.fecha)) : [];
+  const res = window.Charts.line(el.querySelector('#ch-tend'), {
+    labels: lab, height: 220, format: window.Charts.fmt.signed(window.Charts.fmt.dec(1)), tickFormat: window.Charts.fmt.signed(),
+    series: [{ name: 'Media de 3 partidos', values: t.movil }, { name: 'Diferencia del partido', values: t.difs, colour: getComputedStyle(el).getPropertyValue('--chart-muted').trim() || '#c9c3c4' }],
+    reference: { value: 0, label: 'Empate' },
+  });
+  if (res?.legend) el.querySelector('#ley-tend').replaceChildren(res.legend);
+  if (a.sets?.length) window.Charts.bars(el.querySelector('#ch-sets'), { labels: a.sets.map((s) => s.label), values: a.sets.map((s) => s.pct), format: window.Charts.fmt.pct(0), height: 160, yTicks: [0, 0.25, 0.5, 0.75, 1] });
+  if (a.eficiencia.origen) { const o = a.eficiencia.origen; window.Charts.barList(el.querySelector('#ch-origen'), o.filas.map((f) => ({ label: `${f.label} · ${fmtPct0(f.value / o.total)}`, value: f.value })), { format: (x) => `${fmtInt(x)} ${o.unidad}`, thin: true }); }
+  if (a.dependencia) { const d = a.dependencia; window.Charts.barList(el.querySelector('#ch-dep'), d.aportes.slice(0, 5).map((x) => ({ label: nombreCorto(x.j), value: x.v / d.totalAporte })), { format: window.Charts.fmt.pct(0), thin: true }); }
+
+  const prod = el.querySelector('#tabla-prod');
+  if (!a.produccion.length) prod.innerHTML = `<div class="empty" style="margin:16px var(--card-pad)"><p>${cfg.porMinutos ? 'Registra los minutos jugados en la planilla para calcular la producción por minutos.' : 'Todavía no hay jugadores con 2 o más partidos.'}</p></div>`;
+  else prod.innerHTML = `<table><thead><tr><th>Jugador</th><th class="n">PJ</th>${cfg.porMinutos ? '<th class="n">Min</th>' : ''}${cfg.produccion.map((c) => `<th class="n">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${a.produccion.map((r) => `<tr><td><span class="player"><span class="dorsal">${r.jugador.dorsal ?? ''}</span><a class="row-link" href="#/jugadores/${r.jugador.id}">${esc(r.jugador.nombre)}</a></span></td><td class="n">${fmtInt(r.pj)}</td>${cfg.porMinutos ? `<td class="n">${fmtInt(r.min)}</td>` : ''}${cfg.produccion.map((c, i) => { const x = r.valores[i]; return `<td class="n">${x == null ? '<span class="zero">—</span>' : c.signed ? conSigno(fmtInt)(x) : fmtVal(c, x)}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
 }

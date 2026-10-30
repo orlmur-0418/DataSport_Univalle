@@ -1,7 +1,7 @@
 // Arranque, sesión, menú y rutas (#/resumen, #/partidos, …)
 import { crearAdaptador, modo, mensajeError, reiniciarDemo, entrarDemo } from './data.js';
 import { esc, icon, marca, iniciales, aviso } from './ui.js';
-import * as V from './views.js';
+import * as V from './views.js?v=3';
 import { vistaLogin, vistaNuevaClave } from './login.js';
 
 const app = document.getElementById('app');
@@ -40,6 +40,7 @@ function shell(ruta) {
   const eq = ctx.equipo;
   const nav = [
     ['resumen', 'Resumen', '#/resumen'],
+    ['analisis', 'Análisis', '#/analisis'],
     ['partidos', 'Partidos', '#/partidos', ctx.datos?.partidos.length],
     ['jugadores', 'Jugadores', '#/jugadores', ctx.datos?.jugadores.filter((j) => j.activo).length],
     ['equipo', 'Equipo', '#/equipo'],
@@ -106,7 +107,7 @@ async function render() {
   if (id !== renderId) return;
   const el = shell(ruta);
   const partes = ruta.split('/').filter(Boolean);
-  const titulo = { resumen: 'Resumen', partidos: 'Partidos', jugadores: 'Jugadores', equipo: 'Equipo', profesores: 'Profesores' }[partes[0]] || 'Resumen';
+  const titulo = { resumen: 'Resumen', analisis: 'Análisis', partidos: 'Partidos', jugadores: 'Jugadores', equipo: 'Equipo', profesores: 'Profesores' }[partes[0]] || 'Resumen';
   document.title = `${titulo} · DataSport Univalle`;
   try {
     if (partes[0] === 'partidos' && partes[1]) await V.vistaPlanilla(el, ctx, partes[1] === 'nuevo' ? null : partes[1]);
@@ -115,6 +116,7 @@ async function render() {
     else if (partes[0] === 'jugadores') await V.vistaJugadores(el, ctx);
     else if (partes[0] === 'equipo' && partes[1] === 'nuevo') await V.vistaEquipo(el, ctx, true);
     else if (partes[0] === 'equipo') await V.vistaEquipo(el, ctx, false);
+    else if (partes[0] === 'analisis') await V.vistaAnalisis(el, ctx);
     else if (partes[0] === 'profesores' && ctx.perfil?.es_admin) await V.vistaProfesores(el, ctx);
     else await V.vistaResumen(el, ctx);
   } catch (err) {
